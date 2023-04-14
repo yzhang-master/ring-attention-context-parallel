@@ -10,8 +10,9 @@ def full_attention(
 ) -> torch.Tensor:
     scores = torch.matmul(query, key.transpose(-1, -2)) / (query.shape[-1] ** 0.5)
     if causal:
-        length = query.shape[-2]
-        allowed = torch.ones(length, length, dtype=torch.bool, device=query.device).tril()
+        query_positions = torch.arange(query.shape[-2], device=query.device)
+        key_positions = torch.arange(key.shape[-2], device=query.device)
+        allowed = key_positions.unsqueeze(0) <= query_positions.unsqueeze(1)
         scores = scores.masked_fill(~allowed, -torch.inf)
     probabilities = torch.softmax(scores, dim=-1)
     return torch.matmul(probabilities, value)
