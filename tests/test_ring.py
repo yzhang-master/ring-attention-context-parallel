@@ -34,7 +34,7 @@ def _unused_tcp_port() -> int:
         return sock.getsockname()[1]
 
 
-def _two_rank_worker(rank: int, world_size: int, port: int) -> None:
+def _distributed_worker(rank: int, world_size: int, port: int) -> None:
     dist.init_process_group(
         "gloo",
         init_method=f"tcp://127.0.0.1:{port}",
@@ -43,9 +43,9 @@ def _two_rank_worker(rank: int, world_size: int, port: int) -> None:
     )
     try:
         torch.manual_seed(37)
-        query = torch.randn(1, 2, 8, 4, dtype=torch.float32)
-        key = torch.randn(1, 2, 8, 4, dtype=torch.float32)
-        value = torch.randn(1, 2, 8, 4, dtype=torch.float32)
+        query = torch.randn(1, 2, 12, 4, dtype=torch.float32)
+        key = torch.randn(1, 2, 12, 4, dtype=torch.float32)
+        value = torch.randn(1, 2, 12, 4, dtype=torch.float32)
         local_query = sequence_shard(query, rank, world_size)
         local_key = sequence_shard(key, rank, world_size)
         local_value = sequence_shard(value, rank, world_size)
@@ -58,5 +58,11 @@ def _two_rank_worker(rank: int, world_size: int, port: int) -> None:
         dist.destroy_process_group()
 
 
-def test_two_rank_cpu_gloo_matches_full_fp32_attention() -> None:
-    mp.spawn(_two_rank_worker, args=(2, _unused_tcp_port()), nprocs=2, join=True)
+@pytest.mark.parametrize("world_size", [2, 3])
+def test_cpu_gloo_matches_full_fp32_attention(world_size: int) -> None:
+    mp.spawn(
+        _distributed_worker,
+        args=(world_size, _unused_tcp_port()),
+        nprocs=world_size,
+        join=True,
+    )
